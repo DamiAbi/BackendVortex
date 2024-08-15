@@ -1,58 +1,46 @@
-const Empleado = require('../models/empleado');
+const Empleado = require('../models/Empleado');
 
-// Crear un empleado (Solo admin)
-exports.crearEmpleado = async (req, res) => {
+exports.listarEmpleados = async (req, res, next) => {
   try {
-    if (req.usuario.rol !== 'admin') {
-      return res.status(403).json({ message: 'No tienes permiso para realizar esta acción' });
-    }
+    const empleados = await Empleado.find().populate('puesto');
+    res.status(200).json(empleados);
+  } catch (error) {
+    next(error);
+  }
+};
 
+exports.crearEmpleado = async (req, res, next) => {
+  try {
     const nuevoEmpleado = new Empleado(req.body);
-    await nuevoEmpleado.save();
-    res.status(201).json(nuevoEmpleado);
+    const empleadoGuardado = await nuevoEmpleado.save();
+    res.status(201).json(empleadoGuardado);
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear empleado' });
+    next(error);
   }
 };
 
-// Listar empleados (Solo admin)
-exports.listarEmpleados = async (req, res) => {
+exports.actualizarEmpleado = async (req, res, next) => {
   try {
-    if (req.usuario.rol !== 'admin') {
-      return res.status(403).json({ message: 'No tienes permiso para realizar esta acción' });
+    const empleadoActualizado = await Empleado.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!empleadoActualizado) {
+      res.status(404);
+      throw new Error('Empleado no encontrado');
     }
-
-    const empleados = await Empleado.find();
-    res.json(empleados);
+    res.status(200).json(empleadoActualizado);
   } catch (error) {
-    res.status(500).json({ message: 'Error al listar empleados' });
+    next(error);
   }
 };
 
-// Actualizar un empleado (Solo admin)
-exports.actualizarEmpleado = async (req, res) => {
+exports.eliminarEmpleado = async (req, res, next) => {
   try {
-    if (req.usuario.rol !== 'admin') {
-      return res.status(403).json({ message: 'No tienes permiso para realizar esta acción' });
+    const empleadoEliminado = await Empleado.findByIdAndDelete(req.params.id);
+    if (!empleadoEliminado) {
+      res.status(404);
+      throw new Error('Empleado no encontrado');
     }
-
-    const empleado = await Empleado.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(empleado);
+    res.status(200).json({ message: 'Empleado eliminado' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar empleado' });
-  }
-};
-
-// Eliminar un empleado (Solo admin)
-exports.eliminarEmpleado = async (req, res) => {
-  try {
-    if (req.usuario.rol !== 'admin') {
-      return res.status(403).json({ message: 'No tienes permiso para realizar esta acción' });
-    }
-
-    await Empleado.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Empleado eliminado' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar empleado' });
+    next(error);
   }
 };

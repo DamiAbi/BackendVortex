@@ -1,12 +1,11 @@
 const express = require('express');
-const router = express.Router();
-const empleadoController = require('../controllers/epleadoController');
+const { listarEmpleados, crearEmpleado, actualizarEmpleado, eliminarEmpleado } = require('../controllers/empleadoController');
 const authMiddleware = require('../middleware/authMiddleware');
+const router = express.Router();
 
-// Rutas de empleados (Solo admin)
-router.get('/empleados', authMiddleware, empleadoController.listarEmpleados);
-router.post('/empleados', authMiddleware, empleadoController.crearEmpleado);
-router.put('/empleados/:id', authMiddleware, empleadoController.actualizarEmpleado);
-router.delete('/empleados/:id', authMiddleware, empleadoController.eliminarEmpleado);
+router.get('/empleados', authMiddleware, listarEmpleados);
+router.post('/empleados', authMiddleware, crearEmpleado);
+router.put('/empleados/:id', authMiddleware, actualizarEmpleado);
+router.delete('/empleados/:id', authMiddleware, eliminarEmpleado);
 
 module.exports = router;

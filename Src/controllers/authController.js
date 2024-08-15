@@ -1,62 +1,63 @@
 const Usuario = require('../models/usuario');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 
-// Iniciar sesión
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   const { email, contraseña } = req.body;
 
   try {
     const usuario = await Usuario.findOne({ email });
-
-    if (!usuario || !bcrypt.compareSync(contraseña, usuario.contraseña)) {
-      return res.status(400).json({ message: 'Credenciales inválidas' });
+    if (!usuario || !(await usuario.compararContraseña(contraseña))) {
+      res.status(401);
+      throw new Error('Credenciales incorrectas');
     }
 
     const token = jwt.sign({ id: usuario._id, rol: usuario.rol }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token });
+
+    res.status(200).json({ token });
   } catch (error) {
-    res.status(500).json({ message: 'Error al iniciar sesión' });
+    next(error);
   }
 };
 
-// Olvidar contraseña
-exports.olvidarContraseña = async (req, res) => {
+exports.olvidarContraseña = async (req, res, next) => {
   const { email } = req.body;
 
   try {
     const usuario = await Usuario.findOne({ email });
     if (!usuario) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      res.status(404);
+      throw new Error('Usuario no encontrado');
     }
 
-    const token = jwt.sign({ id: usuario._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    const resetToken = jwt.sign({ id: usuario._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
+    // Configurar Nodemailer
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
       },
     });
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
+      from: process.env.GMAIL_USER,
+      to: usuario.email,
       subject: 'Recuperación de Contraseña',
-      text: `Para recuperar tu contraseña, haz clic en el siguiente enlace: ${process.env.FRONTEND_URL}/recuperar-contraseña/${token}`,
+      text: `Has solicitado una recuperación de contraseña. Utiliza este token: ${resetToken}`,
     };
 
     await transporter.sendMail(mailOptions);
-    res.json({ message: 'Correo de recuperación enviado' });
+
+    res.status(200).json({ message: 'Correo de recuperación enviado' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al enviar correo de recuperación' });
+    next(error);
   }
 };
 
-// Recuperar contraseña
-exports.recuperarContraseña = async (req, res) => {
+exports.recuperarContraseña = async (req, res, next) => {
   const { token } = req.params;
   const { nuevaContraseña } = req.body;
 
@@ -65,13 +66,15 @@ exports.recuperarContraseña = async (req, res) => {
     const usuario = await Usuario.findById(decoded.id);
 
     if (!usuario) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      res.status(404);
+      throw new Error('Usuario no encontrado');
     }
 
-    usuario.contraseña = bcrypt.hashSync(nuevaContraseña, 10);
+    usuario.contraseña = nuevaContraseña;
     await usuario.save();
-    res.json({ message: 'Contraseña actualizada' });
+
+    res.status(200).json({ message: 'Contraseña actualizada' });
   } catch (error) {
-    res.status(500).json({ message: 'Error al recuperar contraseña' });
+    next(error);
   }
 };

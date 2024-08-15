@@ -5,16 +5,21 @@ const usuarioSchema = new mongoose.Schema({
   nombre: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   contraseña: { type: String, required: true },
-  rol: { type: String, enum: ['admin', 'user'], default: 'user' }
-});
+  rol: { type: String, required: true, enum: ['admin', 'usuario'] },
+}, { timestamps: true });
 
-usuarioSchema.pre('save', async function (next) {
+// Encriptar contraseña antes de guardar
+usuarioSchema.pre('save', async function(next) {
   if (!this.isModified('contraseña')) {
-    return next();
+    next();
   }
   const salt = await bcrypt.genSalt(10);
   this.contraseña = await bcrypt.hash(this.contraseña, salt);
   next();
 });
+
+usuarioSchema.methods.compararContraseña = async function(contraseñaIngresada) {
+  return await bcrypt.compare(contraseñaIngresada, this.contraseña);
+};
 
 module.exports = mongoose.model('Usuario', usuarioSchema);

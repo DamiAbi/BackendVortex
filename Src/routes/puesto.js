@@ -1,11 +1,10 @@
 const express = require('express');
-const router = express.Router();
-const puestoController = require('../controllers/puestoController');
+const { listarPuestos, crearPuesto, eliminarPuesto } = require('../controllers/puestoController');
 const authMiddleware = require('../middleware/authMiddleware');
+const router = express.Router();
 
-// Rutas de puestos (Solo admin)
-router.get('/puestos', authMiddleware, puestoController.listarPuestos);
-router.post('/puestos', authMiddleware, puestoController.crearPuesto);
-router.delete('/puestos/:id', authMiddleware, puestoController.eliminarPuesto);
+router.get('/puestos', authMiddleware, listarPuestos);
+router.post('/puestos', authMiddleware, crearPuesto);
+router.delete('/puestos/:id', authMiddleware, eliminarPuesto);
 
 module.exports = router;
