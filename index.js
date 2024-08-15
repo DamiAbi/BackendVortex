@@ -1,24 +1,24 @@
 const express = require('express');
-const connectDB = require('./src/config/db');
-require('dotenv').config();
+const dotenv = require('dotenv');
+const connectDB = require('./Config/db');
 
+// Configurar dotenv para usar las variables de entorno
+dotenv.config();
+
+// Conectar a la base de datos
+connectDB();  
+
+// Inicializar la aplicación de Express
 const app = express();
 
+// Middleware para parsear JSON
 app.use(express.json());
 
-// Conectar a MongoDB
-connectDB();
-
-// Importar rutas (asegúrate de que los nombres de archivo coincidan exactamente)
-const authRoutes = require('./src/routes/Auth');         // O './src/routes/auth' si el archivo se llama 'auth.js'
-const employeeRoutes = require('./src/routes/employee');
-const positionRoutes = require('./src/routes/Position'); // O './src/routes/position' si el archivo se llama 'position.js'
-
-// Usar rutas
-app.use('/api/auth', authRoutes);         // Rutas de autenticación para administradores
-app.use('/api/employees', employeeRoutes); // Rutas de empleados
-app.use('/api/positions', positionRoutes); // Rutas de puestos
+// Rutas
+app.use('/api/auth', require('./Src/routes/auth'));
+app.use('/api', require('./Src/routes/empleado'));
+app.use('/api', require('./Src/routes/puesto'));
 
 // Iniciar el servidor
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor ejecutándose en el puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));

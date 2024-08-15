@@ -1,54 +1,77 @@
-const Admin = require('../models/Administracion');
+const Usuario = require('../models/usuario');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 
-// Registro de administrador
-exports.registerAdmin = async (req, res) => {
-  const { name, email, password } = req.body;
+// Iniciar sesión
+exports.login = async (req, res) => {
+  const { email, contraseña } = req.body;
 
   try {
-    const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
-      return res.status(400).json({ message: 'El correo ya está registrado' });
+    const usuario = await Usuario.findOne({ email });
+
+    if (!usuario || !bcrypt.compareSync(contraseña, usuario.contraseña)) {
+      return res.status(400).json({ message: 'Credenciales inválidas' });
     }
 
-    const newAdmin = new Admin({ name, email, password });
-    await newAdmin.save();
-
-    res.status(201).json({ message: 'Administrador registrado con éxito' });
+    const token = jwt.sign({ id: usuario._id, rol: usuario.rol }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Error al iniciar sesión' });
   }
 };
 
-// Login de administrador
-exports.loginAdmin = async (req, res) => {
-  const { email, password } = req.body;
+// Olvidar contraseña
+exports.olvidarContraseña = async (req, res) => {
+  const { email } = req.body;
 
   try {
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      return res.status(400).json({ message: 'Correo o contraseña incorrectos' });
+    const usuario = await Usuario.findOne({ email });
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    const isMatch = await admin.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Correo o contraseña incorrectos' });
-    }
+    const token = jwt.sign({ id: usuario._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-    res.json({ token, admin: { id: admin._id, name: admin.name, role: admin.role } });
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Recuperación de Contraseña',
+      text: `Para recuperar tu contraseña, haz clic en el siguiente enlace: ${process.env.FRONTEND_URL}/recuperar-contraseña/${token}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ message: 'Correo de recuperación enviado' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Error al enviar correo de recuperación' });
   }
 };
 
-// Listar administradores
-exports.getAllAdmins = async (req, res) => {
+// Recuperar contraseña
+exports.recuperarContraseña = async (req, res) => {
+  const { token } = req.params;
+  const { nuevaContraseña } = req.body;
+
   try {
-    const admins = await Admin.find().select('-password');
-    res.json(admins);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const usuario = await Usuario.findById(decoded.id);
+
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    usuario.contraseña = bcrypt.hashSync(nuevaContraseña, 10);
+    await usuario.save();
+    res.json({ message: 'Contraseña actualizada' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Error al recuperar contraseña' });
   }
 };

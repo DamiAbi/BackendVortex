@@ -1,12 +1,10 @@
 const express = require('express');
-const { registerAdmin, loginAdmin, getAllAdmins } = require('../controllers/authController');
-const { authMiddleware, adminOnly } = require('../middleware/authMiddleware');
-
 const router = express.Router();
+const authController = require('../controllers/authController');
 
 // Rutas de autenticación
-router.post('/register', authMiddleware, adminOnly, registerAdmin);
-router.post('/login', loginAdmin);
-router.get('/', authMiddleware, adminOnly, getAllAdmins);
+router.post('/login', authController.login);
+router.post('/olvidar-contraseña', authController.olvidarContraseña);
+router.post('/recuperar-contraseña/:token', authController.recuperarContraseña);
 
 module.exports = router;
