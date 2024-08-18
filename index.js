@@ -1,24 +1,33 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const connectDB = require('./Config/db');
+const connectDB = require('./config/db');
 
-// Configurar dotenv para usar las variables de entorno
-dotenv.config();
+// Load environment variables
+dotenv.config({ path: './.env' });
 
-// Conectar a la base de datos
-connectDB();  
+// Connect to database
+connectDB();
 
-// Inicializar la aplicación de Express
+// Initialize Express app
 const app = express();
 
-// Middleware para parsear JSON
+// Middleware
 app.use(express.json());
 
-// Rutas
-app.use('/api/auth', require('./Src/routes/auth'));
-app.use('/api', require('./Src/routes/empleado'));
-app.use('/api', require('./Src/routes/puesto'));
+// Routes
+app.use('/api/auth', require('./Src/routes/authRoutes'));
+app.use('/api/users', require('./Src/routes/userRoutes'));
+app.use('/api/employees', require('./Src/routes/employeeRoutes'));
+//app.use('/api/positions',require('./Src/routes/positionRoutes'));
 
-// Iniciar el servidor
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Server Error' });
+});
+
+// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

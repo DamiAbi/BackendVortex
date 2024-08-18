@@ -1,79 +1,93 @@
-const Usuario = require('../models/usuario');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const User = require('../models/user');
 
-exports.login = async (req, res, next) => {
-  const { email, contraseña } = req.body;
-
+exports.loginUser = async (req, res, next) => {
   try {
-    const usuario = await Usuario.findOne({ email });
-    if (!usuario || !(await usuario.compararContraseña(contraseña))) {
-      res.status(401);
-      throw new Error('Credenciales incorrectas');
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email, isActive: true });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: usuario._id, rol: usuario.rol }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    res.status(200).json({ token });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+    });
+
+    res.json({ token, user: { id: user._id, name: user.name, role: user.role } });
   } catch (error) {
     next(error);
   }
 };
 
-exports.olvidarContraseña = async (req, res, next) => {
-  const { email } = req.body;
-
+exports.forgotPassword = async (req, res, next) => {
   try {
-    const usuario = await Usuario.findOne({ email });
-    if (!usuario) {
-      res.status(404);
-      throw new Error('Usuario no encontrado');
+    const { email } = req.body;
+
+    const user = await User.findOne({ email, isActive: true });
+    if (!user) {
+      return res.status(404).json({ message: 'No user found with that email' });
     }
 
-    const resetToken = jwt.sign({ id: usuario._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutos
 
-    // Configurar Nodemailer
+    await user.save();
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS,
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
-      to: usuario.email,
-      subject: 'Recuperación de Contraseña',
-      text: `Has solicitado una recuperación de contraseña. Utiliza este token: ${resetToken}`,
+      to: user.email,
+      from: process.env.EMAIL_USER,
+      subject: 'Password Reset',
+      text: `You requested a password reset. Please go to this link to reset your password: \n\n ${resetUrl}`,
     };
 
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({ message: 'Correo de recuperación enviado' });
+    res.json({ message: 'Password reset email sent' });
   } catch (error) {
     next(error);
   }
 };
 
-exports.recuperarContraseña = async (req, res, next) => {
-  const { token } = req.params;
-  const { nuevaContraseña } = req.body;
-
+exports.resetPassword = async (req, res, next) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const usuario = await Usuario.findById(decoded.id);
+    const resetPasswordToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
-    if (!usuario) {
-      res.status(404);
-      throw new Error('Usuario no encontrado');
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
     }
 
-    usuario.contraseña = nuevaContraseña;
-    await usuario.save();
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
 
-    res.status(200).json({ message: 'Contraseña actualizada' });
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
   } catch (error) {
     next(error);
   }
